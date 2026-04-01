@@ -1,0 +1,308 @@
+{
+  "id": "dc046d3c-62fd-4ac0-ae86-df8436dc12a2",
+  "revision": 0,
+  "last_node_id": 7,
+  "last_link_id": 8,
+  "nodes": [
+    {
+      "id": 2,
+      "type": "VoxtralTTS",
+      "pos": [
+        -7560.664578385973,
+        2490.556809744249
+      ],
+      "size": [
+        400,
+        328
+      ],
+      "flags": {},
+      "order": 0,
+      "mode": 0,
+      "inputs": [
+        {
+          "name": "text_input",
+          "shape": 7,
+          "type": "STRING",
+          "link": null
+        }
+      ],
+      "outputs": [
+        {
+          "name": "audio",
+          "type": "AUDIO",
+          "links": [
+            1
+          ]
+        }
+      ],
+      "properties": {
+        "aux_id": "sienadrayy/VoxtrolTTS-ComfyUI",
+        "ver": "f45b671947f10c94a776c81245c28e0664ac6744",
+        "Node name for S&R": "VoxtralTTS",
+        "ue_properties": {
+          "widget_ue_connectable": {},
+          "input_ue_unconnectable": {},
+          "version": "7.7"
+        }
+      },
+      "widgets_values": [
+        "Hello, this is a test of the Voxtral text to speech system.",
+        "Voxtral-4B-TTS-2603",
+        "casual_male",
+        8,
+        1.2,
+        0,
+        1,
+        0,
+        1.1,
+        8,
+        true
+      ]
+    },
+    {
+      "id": 4,
+      "type": "LoadAudio",
+      "pos": [
+        -7609.943892642155,
+        3000.3758381606544
+      ],
+      "size": [
+        282.798828125,
+        136
+      ],
+      "flags": {},
+      "order": 1,
+      "mode": 4,
+      "inputs": [],
+      "outputs": [
+        {
+          "name": "AUDIO",
+          "type": "AUDIO",
+          "links": [
+            7
+          ]
+        }
+      ],
+      "properties": {
+        "cnr_id": "comfy-core",
+        "ver": "0.18.1",
+        "Node name for S&R": "LoadAudio",
+        "ue_properties": {
+          "widget_ue_connectable": {},
+          "input_ue_unconnectable": {},
+          "version": "7.7"
+        }
+      },
+      "widgets_values": [
+        "base_audio.mp3",
+        null,
+        null
+      ]
+    },
+    {
+      "id": 5,
+      "type": "SaveAudioMP3",
+      "pos": [
+        -6856.611649253853,
+        3002.6724822576757
+      ],
+      "size": [
+        270,
+        136
+      ],
+      "flags": {},
+      "order": 4,
+      "mode": 4,
+      "inputs": [
+        {
+          "name": "audio",
+          "type": "AUDIO",
+          "link": 8
+        }
+      ],
+      "outputs": [],
+      "properties": {
+        "cnr_id": "comfy-core",
+        "ver": "0.18.1",
+        "Node name for S&R": "SaveAudioMP3",
+        "ue_properties": {
+          "widget_ue_connectable": {},
+          "input_ue_unconnectable": {},
+          "version": "7.7"
+        }
+      },
+      "widgets_values": [
+        "audio/ComfyUI",
+        "V0"
+      ]
+    },
+    {
+      "id": 7,
+      "type": "VoxtralVoiceClone",
+      "pos": [
+        -7309.930564093114,
+        3011.381752398093
+      ],
+      "size": [
+        400,
+        348
+      ],
+      "flags": {},
+      "order": 3,
+      "mode": 4,
+      "inputs": [
+        {
+          "name": "voice_to_clone",
+          "type": "AUDIO",
+          "link": 7
+        },
+        {
+          "name": "text_input",
+          "shape": 7,
+          "type": "STRING",
+          "link": null
+        }
+      ],
+      "outputs": [
+        {
+          "name": "audio",
+          "type": "AUDIO",
+          "links": [
+            8
+          ]
+        }
+      ],
+      "properties": {
+        "aux_id": "sienadrayy/VoxtrolTTS-ComfyUI",
+        "ver": "f45b671947f10c94a776c81245c28e0664ac6744",
+        "Node name for S&R": "VoxtralVoiceClone",
+        "ue_properties": {
+          "widget_ue_connectable": {},
+          "input_ue_unconnectable": {},
+          "version": "7.7"
+        }
+      },
+      "widgets_values": [
+        "Hello, this is a test of the Voxtral text to speech system.",
+        "Voxtral-4B-TTS-2603",
+        150,
+        8,
+        1.2,
+        0,
+        1,
+        0,
+        1.1,
+        30
+      ]
+    },
+    {
+      "id": 1,
+      "type": "SaveAudioMP3",
+      "pos": [
+        -7082.738151685211,
+        2489.8917285767266
+      ],
+      "size": [
+        270,
+        136
+      ],
+      "flags": {},
+      "order": 2,
+      "mode": 0,
+      "inputs": [
+        {
+          "name": "audio",
+          "type": "AUDIO",
+          "link": 1
+        }
+      ],
+      "outputs": [],
+      "properties": {
+        "cnr_id": "comfy-core",
+        "ver": "0.18.1",
+        "Node name for S&R": "SaveAudioMP3",
+        "ue_properties": {
+          "widget_ue_connectable": {},
+          "input_ue_unconnectable": {},
+          "version": "7.7"
+        }
+      },
+      "widgets_values": [
+        "audio/ComfyUI",
+        "V0"
+      ]
+    }
+  ],
+  "links": [
+    [
+      1,
+      2,
+      0,
+      1,
+      0,
+      "AUDIO"
+    ],
+    [
+      7,
+      4,
+      0,
+      7,
+      0,
+      "AUDIO"
+    ],
+    [
+      8,
+      7,
+      0,
+      5,
+      0,
+      "AUDIO"
+    ]
+  ],
+  "groups": [
+    {
+      "id": 1,
+      "title": "Voice Clone (WIP not working)",
+      "bounding": [
+        -7619.976652900721,
+        2924.753717617617,
+        1063.9351653332933,
+        564.6130524052082
+      ],
+      "color": "#3f789e",
+      "font_size": 24,
+      "flags": {}
+    },
+    {
+      "id": 2,
+      "title": "TTS",
+      "bounding": [
+        -7604.879673075002,
+        2311.8163366938957,
+        1032.4082926571991,
+        580.573559116538
+      ],
+      "color": "#3f789e",
+      "font_size": 24,
+      "flags": {}
+    }
+  ],
+  "config": {},
+  "extra": {
+    "ue_links": [],
+    "ds": {
+      "scale": 1.0667762814769044,
+      "offset": [
+        8199.786178796501,
+        -1948.2297565132626
+      ]
+    },
+    "links_added_by_ue": [],
+    "frontendVersion": "1.42.8",
+    "VHS_latentpreview": false,
+    "VHS_latentpreviewrate": 0,
+    "VHS_MetadataImage": false,
+    "VHS_KeepIntermediate": true
+  },
+  "version": 0.4
+}

@@ -338,6 +338,22 @@ class CodecDecoder(nn.Module):
                                      cfg.patch_proj_kernel_size,  # 7
                                      stride=1, transpose=False, causal=cfg.causal)
 
+    def decode_from_latent(self, latent: torch.Tensor) -> torch.Tensor:
+        """Decode directly from continuous 292-dim latent vectors (no quantization).
+
+        Args:
+            latent: (batch, time, 292) continuous latent features
+
+        Returns:
+            (batch, samples) waveform at 24kHz
+        """
+        x = latent.transpose(1, 2)  # (batch, 292, time)
+        for block in self.decoder_blocks:
+            x = block(x)
+        x = self.output_proj(x)
+        batch, patch_size, t = x.shape
+        return x.transpose(1, 2).contiguous().view(batch, -1)
+
     def forward(self, semantic_codes: torch.Tensor, acoustic_codes: torch.Tensor,
                 audio_embeddings=None) -> torch.Tensor:
         """Decode audio codes to waveform.

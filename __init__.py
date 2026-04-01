@@ -40,6 +40,15 @@ try:
 except Exception as e:
     logger.error(f"Failed to register VoxtralTTS: {e}")
 
+# Register voice clone node
+try:
+    from .nodes.voxtral_clone_node import VoxtralVoiceCloneNode
+    NODE_CLASS_MAPPINGS["VoxtralVoiceClone"] = VoxtralVoiceCloneNode
+    NODE_DISPLAY_NAME_MAPPINGS["VoxtralVoiceClone"] = "Voxtral Voice Clone"
+    logger.info("Voxtral Voice Clone node registered")
+except Exception as e:
+    logger.error(f"Failed to register VoxtralVoiceClone: {e}")
+
 # Register free memory node
 try:
     from .nodes.free_memory_node import VoxtralFreeMemoryNode

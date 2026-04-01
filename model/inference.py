@@ -64,6 +64,7 @@ class VoxtralTTS:
         self.llm: Optional[MistralLM] = None
         self.acoustic: Optional[AcousticTransformer] = None
         self.codec: Optional[CodecDecoder] = None
+        self.encoder: Optional['CodecEncoder'] = None
         self.tokenizer = None
         self._loaded = False
 
@@ -312,6 +313,45 @@ class VoxtralTTS:
         result = self.tokenizer.encode_speech_request(request)
         return result.tokens
 
+    def _encode_speech_request_with_frames(self, text: str, n_frames: int) -> List[int]:
+        """Build a speech request token sequence for a given number of voice frames.
+
+        Used for voice cloning where we have a pre-computed voice embedding
+        instead of a named voice preset.
+
+        The token layout matches the official format:
+        [BOS, BEGIN_AUDIO, AUDIO_TOKEN * (n_frames + 1), TEXT_TO_AUDIO, text_tokens, AUDIO_TO_TEXT, BEGIN_AUDIO]
+        """
+        from mistral_common.protocol.speech.request import SpeechRequest
+
+        # Generate reference audio bytes of the right length to get n_frames tokens
+        # n_frames + 1 because the tokenizer adds +1 for END_OUTPUT_AUDIO
+        # frame_rate = 12.5 Hz, so audio_length = n_frames / 12.5 * 24000 samples
+        import struct
+        n_samples = int(n_frames / self.config.frame_rate * self.config.sample_rate)
+        # Create minimal WAV bytes
+        fake_audio_bytes = self._make_wav_bytes(n_samples, self.config.sample_rate)
+        request = SpeechRequest(input=text, ref_audio=fake_audio_bytes)
+        result = self.tokenizer.encode_speech_request(request)
+        return result.tokens
+
+    @staticmethod
+    def _make_wav_bytes(n_samples: int, sample_rate: int) -> bytes:
+        """Create minimal WAV file bytes with silence (for tokenizer frame counting)."""
+        import struct
+        import io
+
+        # WAV header for 16-bit mono PCM
+        data_size = n_samples * 2  # 16-bit = 2 bytes per sample
+        header = struct.pack(
+            '<4sI4s4sIHHIIHH4sI',
+            b'RIFF', 36 + data_size, b'WAVE',
+            b'fmt ', 16, 1, 1,  # PCM, mono
+            sample_rate, sample_rate * 2, 2, 16,  # byte rate, block align, bits
+            b'data', data_size,
+        )
+        return header + b'\x00' * data_size
+
     def load_voice_embedding(self, voice_name: str) -> torch.Tensor:
         """Load a pre-computed voice embedding.
 
@@ -341,8 +381,59 @@ class VoxtralTTS:
                 voices.append(f[:-3])
         return voices if voices else VOICE_PRESETS
 
+    def get_encoder(self):
+        """Lazily build the codec encoder from decoder weights."""
+        if self.encoder is not None:
+            return self.encoder
+
+        from .codec_encoder import CodecEncoder
+
+        logger.info("Building codec encoder from decoder weights...")
+        self.encoder = CodecEncoder(self.config)
+        self.encoder.init_from_decoder(self.codec)
+        self.encoder = self.encoder.to(self.device, self.dtype).eval()
+        logger.info("Codec encoder ready")
+        return self.encoder
+
+    def encode_audio(self, waveform_24k: torch.Tensor) -> tuple:
+        """Encode 24kHz audio to codec codes using the encoder.
+
+        Args:
+            waveform_24k: (samples,) mono waveform at 24kHz
+
+        Returns:
+            semantic_codes: (1, time) indices
+            acoustic_codes: (1, time, 36) indices
+        """
+        encoder = self.get_encoder()
+        waveform_batch = waveform_24k.unsqueeze(0).to(self.device)
+        with torch.no_grad():
+            semantic_codes, acoustic_codes = encoder(waveform_batch)
+        return semantic_codes, acoustic_codes
+
+    def compute_voice_embedding(self, semantic_codes: 'torch.Tensor',
+                                acoustic_codes: 'torch.Tensor') -> 'torch.Tensor':
+        """Compute voice embedding from codec codes using LLM's audio codebook.
+
+        Args:
+            semantic_codes: (batch, time) semantic indices [0, 8191]
+            acoustic_codes: (batch, time, 36) acoustic indices [0, 20]
+
+        Returns:
+            (time, dim) voice embedding tensor ready for LLM input
+        """
+        n_frames = semantic_codes.shape[1]
+        emb_list = []
+        for t in range(n_frames):
+            sc = semantic_codes[:, t:t+1]  # (1, 1)
+            ac = acoustic_codes[:, t, :]   # (1, 36)
+            frame_emb = self.llm.audio_embeddings(sc, ac)  # (1, 1, dim)
+            emb_list.append(frame_emb.squeeze(0).squeeze(0))
+        return torch.stack(emb_list)  # (time, dim)
+
     @torch.no_grad()
     def generate(self, text: str, voice: str = "casual_male",
+                 voice_embedding: Optional[torch.Tensor] = None,
                  max_frames: int = 1500, n_flow_steps: int = 8,
                  cfg_alpha: float = 1.2, temperature: float = 0.0,
                  top_p: float = 1.0, top_k: int = 0,
@@ -351,7 +442,9 @@ class VoxtralTTS:
 
         Args:
             text: input text to synthesize
-            voice: voice preset name
+            voice: voice preset name (ignored if voice_embedding is provided)
+            voice_embedding: optional pre-computed (N, dim) voice embedding tensor;
+                if provided, bypasses voice preset loading
             max_frames: maximum number of audio frames (~80ms each, 1500 = ~2 min)
             n_flow_steps: number of Euler integration steps for flow matching
             cfg_alpha: classifier-free guidance strength
@@ -369,16 +462,20 @@ class VoxtralTTS:
         # Reset KV caches
         self.llm.reset_cache()
 
-        # 1. Encode speech request using mistral_common's official format
-        #    Returns: [BOS, BEGIN_AUDIO, AUDIO_TOKEN*N, separator, text_tokens, separator, BEGIN_AUDIO]
-        prompt_token_ids = self._encode_speech_request(text, voice)
+        # Determine voice embedding source
+        if voice_embedding is not None:
+            voice_emb = voice_embedding.to(self.device, self.dtype)
+            n_voice_frames = voice_emb.shape[0]
+            # Use ref_audio path in tokenizer: create right number of AUDIO_TOKEN placeholders
+            prompt_token_ids = self._encode_speech_request_with_frames(text, n_voice_frames)
+        else:
+            prompt_token_ids = self._encode_speech_request(text, voice)
+            voice_emb = self.load_voice_embedding(voice)
+            n_voice_frames = voice_emb.shape[0]
+
         logger.info(f"Prompt: {len(prompt_token_ids)} tokens")
         logger.info(f"Prompt tokens (first 10): {prompt_token_ids[:10]}")
         logger.info(f"Prompt tokens (last 10): {prompt_token_ids[-10:]}")
-
-        # 2. Load voice embedding
-        voice_emb = self.load_voice_embedding(voice)  # (N, dim)
-        n_voice_frames = voice_emb.shape[0]
         logger.info(f"Voice embedding: {n_voice_frames} frames")
 
         # 3. Build input embeddings for prefill
@@ -526,6 +623,7 @@ class VoxtralTTS:
         self.llm = None
         self.acoustic = None
         self.codec = None
+        self.encoder = None
         self.tokenizer = None
         self._loaded = False
 

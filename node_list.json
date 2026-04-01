@@ -1,5 +1,6 @@
 {
   "Voxtral TTS": "Generate speech from text using Mistral Voxtral-4B with 21 voice presets",
+  "Voxtral Voice Clone": "Generate speech from text using voice cloned from reference audio",
   "Voxtral Load Text From File": "Load text from a .txt file for TTS input",
   "Voxtral Free Memory": "Free Voxtral model from VRAM; audio passes through unchanged"
 }
